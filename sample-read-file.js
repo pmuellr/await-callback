@@ -29,12 +29,10 @@ async function readFileAsync (fileName, cb, done) {
   const buffer = new Buffer(stats.size)
 
   // fs.read()'s cb: (err, bytesRead, buffer)
-  const bytesReadBuffer = await done(fs.read(fd, buffer, 0, buffer.length, 0, cb))
+  const [bytesRead, bufferRead] = await done(fs.read(fd, buffer, 0, buffer.length, 0, cb))
   if (cb.err) return cb.err
 
   // fs.read()'s cb invoked as cb(err, bytesRead, buffer), so we get an array
-  const bytesRead = bytesReadBuffer[0]
-  const bufferRead = bytesReadBuffer[1]
   if (bytesRead !== buffer.length) return new Error('EMOREFILE')
 
   // fs.close()'s cb: (err)

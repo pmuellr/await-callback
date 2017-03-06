@@ -18,7 +18,7 @@ function wrap (asyncFn) {
 }
 
 // call with (asyncFn, arg1, arg2, ..., cb)
-async function run (asyncFn) {
+function run (asyncFn) {
   ensureAsyncFunction(asyncFn)
 
   // get arguments
@@ -68,10 +68,12 @@ async function run (asyncFn) {
     // handle success return value
     return cbFinal(null, result)
   })
-  // welp, this would be a user error, guess we might lose some context,
+  // welp, this would be a user error, and we'll lose context here,
   // but seems better than having an unhandled promise rejection
   .catch((err) => {
-    throw err
+    setImmediate(() => {
+      throw err
+    })
   })
 
   // the callback function, used in the async function

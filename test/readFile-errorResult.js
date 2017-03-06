@@ -8,7 +8,7 @@ const tapeRunner = require('./tapeRunner')(__filename)
 const FileContents = fs.readFileSync(__filename, 'utf8')
 
 const readFile = function (fileName, cb) {
-  awaitCallback.run(readFileGen, fileName, cb)
+  awaitCallback.run(readFileAsync, fileName, cb)
 }
 
 tapeRunner(function testReadFile (t) {
@@ -27,24 +27,22 @@ tapeRunner(function testNonExistantFile (t) {
   })
 })
 
-function * readFileGen (fileName, cb) {
-  const fd = yield fs.open(fileName, 'r', cb)
-  if (cb.err) return cb.errorResult(cb.err)
+async function readFileAsync (fileName, cb, done) {
+  const fd = await done(fs.open(fileName, 'r', cb))
+  if (cb.err) return cb.err
 
-  const stats = yield fs.fstat(fd, cb)
-  if (cb.err) return cb.errorResult(cb.err)
+  const stats = await done(fs.fstat(fd, cb))
+  if (cb.err) return cb.err
 
   const buffer = new Buffer(stats.size)
 
-  const bytesReadBuffer = yield fs.read(fd, buffer, 0, buffer.length, 0, cb)
-  if (cb.err) return cb.errorResult(cb.err)
+  const [bytesRead, bufferRead] = await done(fs.read(fd, buffer, 0, buffer.length, 0, cb))
+  if (cb.err) return cb.err
 
-  const bytesRead = bytesReadBuffer[0]
-  const bufferRead = bytesReadBuffer[1]
   if (bytesRead !== buffer.length) return new Error('EMOREFILE')
 
-  yield fs.close(fd, cb)
-  if (cb.err) return cb.errorResult(cb.err)
+  await done(fs.close(fd, cb))
+  if (cb.err) return cb.err
 
   return bufferRead
 }

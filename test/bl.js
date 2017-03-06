@@ -27,16 +27,16 @@ tapeRunner(function testNonExistantFile (t) {
   })
 })
 
-function * readFileWithBlGen (fileName, cb) {
+async function readFileWithBlGen (fileName, cb, done) {
   let rStream
 
   try {
-    rStream = fs.createReadStream(fileName)
+    rStream = await fs.createReadStream(fileName)
   } catch (err) {
     return err
   }
 
-  const buffer = yield rStream.pipe(bl(cb))
+  const buffer = await done(rStream.pipe(bl(cb)))
   if (cb.err) return cb.err
 
   return buffer

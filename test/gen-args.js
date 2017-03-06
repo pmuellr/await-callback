@@ -21,10 +21,10 @@ tapeRunner(function testSumArgs132 (t) {
   })
 })
 
-function * sumArgsGen (a, b, c, cb) {
+async function sumArgsGen (a, b, c, cb, done) {
   // the business logic of this function is synchronous, so we need to make
   // the generator async ...
-  yield process.nextTick(cb)
+  await done(process.nextTick(cb))
 
   return a + b + c
 }

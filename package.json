@@ -11,11 +11,10 @@
     "callback"
   ],
   "scripts": {
-    "standard": "standard",
-    "test-eventually": "standard && npm run utest",
-    "test": "standard",
+    "standard": "standard -v",
+    "test": "npm run -s utest && npm run -s standard",
     "utest": "node test/index.js | tap-spec",
-    "watch": "nodemon --exec 'npm test' --ext js,json"
+    "watch": "nodemon --exec 'npm -s test' --ext js,json"
   },
   "devDependencies": {
     "bl": "~1.2.0",

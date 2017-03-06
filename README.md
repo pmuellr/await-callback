@@ -6,6 +6,9 @@ functions that use callbacks in the typical "Node.js" style - eg, `cb(err, data)
 Forget the [Callback Hell][] - and write code that looks like it's synchronous,
 but isn't.  Thanks to the magic that is [`async`/`await`][async-await].
 
+This code only works with Node.js version 7 or above, or perhaps with Node.js
+code transpiled with Babel or similar which generates code for `async` / `await`.
+
 Note that this is the `async`/`await` version of
 [`yield-callback`][yield-callback], which uses generators.
 
@@ -58,11 +61,9 @@ async function readFileAsync (fileName, cb, done) {
 
   const buffer = new Buffer(stats.size)
 
-  const bytesReadBuffer = await done(fs.read(fd, buffer, 0, buffer.length, 0, cb))
+  const [bytesRead, bufferRead] = await done(fs.read(fd, buffer, 0, buffer.length, 0, cb))
   if (cb.err) return cb.err
 
-  const bytesRead = bytesReadBuffer[0]
-  const bufferRead = bytesReadBuffer[1]
   if (bytesRead !== buffer.length) return new Error('EMOREFILE')
 
   await done(fs.close(fd, cb))
@@ -72,24 +73,26 @@ async function readFileAsync (fileName, cb, done) {
 }
 ```
 
-Your `readFile()` function will actually be implemented as an async function.
+Your `readFile()` function will be implemented as an async function.
 
-**TBD needs rewrite from here on down**
+Note the async function takes a `cb` and `done` parameters at the end. The
+`cb` parameter should be used as the
+the callback for async "errback" functions called inside the async function.
+The `done` parameter is a function which returns a promise when the callback
+is invoked, and should be used as the argument to the `await` statement.
+The callback `cb` will resolve the promise returned by `done` when the 
+callback is called.  It will arrange for the `await done(...)` expressions to
+return the result of the callback, or to set the `cb.err` property to the error
+result of the callback.
 
-Note the async function takes a `cb` parameter at the end, but it it works
-differently than a typical Node.js callback.  You pass that `cb` parameter as
-the callback for async functions called inside the generator function, used
-within yield expressions, and `cb` arranges to yield the callback 'result'
-argument(s) as the result, and sets the 'error' argument to `cb.err`:
-
-You can then invoke the generator as below.  Note that you pass a "normal"
+You can then invoke the async function as below.  Note that you pass a "normal"
 callback function in as the final parameter to `run()`, which will be invoked
 when the generator finally returns.  If the generator returns an error, the
 first argument will be that error.  Otherwise, the second argument will be set
 to the return value.  Just like a typical Node.js async callback:
 
 ```js
-awaitCallback.run(readFileGen, fileName, function (err, buffer) {
+awaitCallback.run(readFileAsync, fileName, function (err, buffer) {
   if (err) console.log(err)
   else console.log(buffer.toString('utf8'))
 })
@@ -100,7 +103,7 @@ case, with the same signature and behavior as the pyramid-of-doom `readFile()`
 above:
 
 ```js
-const readFile = awaitCallback(readFileGen)
+const readFile = awaitCallback(readFileAsync)
 
 readFile(fileName, function (err, buffer) {
   if (err) console.log(err)
@@ -117,7 +120,7 @@ install
 API
 ================================================================================
 
-This module exports a function which takes a generator function as a parameter
+This module exports a function which takes an async function as a parameter
 and returns a new function with the same signature as the generator function.
 For the remainder of this document, we'll refer to this function as
 `awaitCallback()`, as if you had done a:
@@ -127,17 +130,18 @@ const awaitCallback = require('await-callback')
 ```
 
 The returned function takes a callback which will be invoked when the generator
-returns.  The generator itself gets passed a `cb` argument as it's final
-parameter, which should be passed as the "callback" function on any async calls
-that you make, which you should use as expressions in front of a `yield`:
+returns.  The generator itself gets passed a `cb` argument and `done` argument as it's final
+parameters.  The `cb` argument should be passed as the "callback" function on any async calls
+that you make, and the `done` function should be called with the async function
+you are invoking, and used as the argument of the `await` statement:
 
 ```js
-function * myGenerator(a, b, cb) {
+async function myAsyncFunction(a, b, cb, done) {
   console.log('waiting(a)', a, 'ms')
-  yield setTimeout(cb, a)
+  await done(setTimeout(cb, a))
 
   console.log('waiting(b)', b, 'ms')
-  yield setTimeout(cb, b)
+  await done(setTimeout(cb, b))
 
   return a + b
 }
@@ -149,47 +153,47 @@ myWrapped(1000, 2000, function (err, val) {
 })
 ```
 
-You can also run a generator directly, via the `run` function available on the
+You can also run an async functiondirectly, via the `run` function available on the
 exported function (eg, `awaitCallback.run()`).
 
 The following are equivalent:
 
 ```js
-awaitCallback.run(generatorFunction, arg1, arg2, ... callback)
+awaitCallback.run(asyncFunction, arg1, arg2, ... callback)
 ```
 
-is equivalent to
-
 ```js
-const wrapped = awaitCallback(generatorFunction)
+const wrapped = awaitCallback(asyncFunction)
 wrapped(arg1, arg2, ... callback)
 ```
 
 
-### API within the generator function
+### API within the async function
 
-When the generator function is invoked, it's final argument is a special
+When the async function is invoked, it's final arguments are a special
 callback function to be used with async callback functions called within the
-generator.  This function can be used as the callback function in an async
-callback function, if the function is used in a `yield` expression:
+generator, and a "done" function used with the `await` statement.
+The callback function can be used as the callback function in an async
+callback function, if the function used is called from the "done" function,
+which is passed to the `await` statement:
 
 ```js
-function * genFunction(a, b, cb) {
+async function asyncFunction(a, b, cb, done) {
   ...
-  yield setTimeout(cb, 1000)
+  await done(setTimeout(cb, 1000))
 
   // code following this comment won't run for 1000 milliseconds
   ...
 }
 ```
 
-The `yield` expression returns a value, which is the "result" passed to the
+The `await` expression returns a value, which is the "result" passed to the
 callback.  The "error" passed to the callback is available as `cb.err`.
 
 ```js
-function * genFunction(fileName, cb) {
+async function asyncFunction(fileName, cb, done) {
   // fs.readFile()'s cb: (err, fileContents)
-  const fileContents = yield fs.readFile(fileName, 'utf8', cb)
+  const fileContents = await done(fs.readFile(fileName, 'utf8', cb))
 
   // the `err` argument of the callback is available in `cb.err`
   if (cb.err) return cb.err
@@ -208,7 +212,7 @@ If the callback is invoked with multiple response values, eg, `cb(null, 1, 2)`,
 the result will be an array of the response values, eg `[1, 2]`, and `cb.err`
 will be `null`.
 
-The value that the generator finally returns will be passed to the original
+The value that the async function finally returns will be passed to the original
 callback back passed into the wrapped (or run) function.  That callback should
 have the signature `cb(err, data)`.
 
@@ -225,10 +229,10 @@ result, rather than a non-error object passed as the second callback parameter:
 
 
 ```js
-awaitCallback.run(genFunction, aFileName, function outerCB (err, data) {})
+awaitCallback.run(asyncFunction, aFileName, function outerCB (err, data) {})
 
-function * genFunction(fileName, cb) {
-  const data = yield fs.readFile(fileName, 'utf8', cb)
+async function asyncFunction(fileName, cb) {
+  const data = await done(fs.readFile(fileName, 'utf8', cb))
 
   if (cb.err) return cb.err                  // calls outerCB(err)
 
